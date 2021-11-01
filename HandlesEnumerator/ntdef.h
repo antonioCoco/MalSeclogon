@@ -1,5 +1,8 @@
 #pragma once
 
+// most of the code took from --> https://github.com/hfiref0x/NtCall64/blob/master/Source/NtCall64/ntos.h
+// credits to @hfiref0x
+
 #define STATUS_INFO_LENGTH_MISMATCH 0xc0000004
 #define STATUS_INSUFFICIENT_RESOURCES 0xC0000009A
 #define STATUS_NOT_FOUND 0xC0000225
