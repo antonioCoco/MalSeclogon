@@ -135,7 +135,8 @@ BOOL SetPrivilege(HANDLE hToken, wchar_t* lpszPrivilege, BOOL bEnablePrivilege)
 void EnableDebugPrivilege(BOOL enforceCheck) {
 	HANDLE currentProcessToken = NULL;
 	OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &currentProcessToken);
-	if (enforceCheck && !SetPrivilege(currentProcessToken, L"SeDebugPrivilege", TRUE)) {
+	BOOL setPrivilegeSuccess = SetPrivilege(currentProcessToken, L"SeDebugPrivilege", TRUE);
+	if (enforceCheck && !setPrivilegeSuccess) {
 		printf("SetPrivilege failed to enable SeDebugPrivilege. Run it as an Administrator. Exiting...\n");
 		exit(-1);
 	}
