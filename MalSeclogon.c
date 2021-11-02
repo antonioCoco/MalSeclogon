@@ -370,7 +370,7 @@ void usage()
 	);
 	printf("\n");
 	printf("Other args: \n"
-		"-d Dump lsass by using leaked tokens\n"
+		"-d Dump lsass by using leaked handles\n"
 		"-o Output path of the dump (default C:\\lsass.dmp)\n"
 		"-c Commandline of the spoofed process, default: cmd.exe (not compatible with -d)\n"
 	);
@@ -378,7 +378,7 @@ void usage()
 	printf("Examples: \n"
 		"\n- Run a process with a spoofed PPID:\n"
 		"\tMalseclogon.exe -p [PPID] -c cmd.exe\n"
-		"- Dump lsass by using leaked tokens:\n"
+		"- Dump lsass by using leaked handles:\n"
 		"\tMalseclogon.exe -p [lsassPid] -d 1\n"
 	);
 	printf("\n");
