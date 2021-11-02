@@ -1,6 +1,6 @@
 #pragma once
 
-// most of the code took from --> https://github.com/hfiref0x/NtCall64/blob/master/Source/NtCall64/ntos.h
+// most of this header code took from --> https://github.com/hfiref0x/NtCall64/blob/master/Source/NtCall64/ntos.h
 // credits to @hfiref0x
 
 #define STATUS_INFO_LENGTH_MISMATCH 0xc0000004
