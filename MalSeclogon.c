@@ -195,7 +195,7 @@ NTSTATUS GetTypeIndexByName(__in PCUNICODE_STRING TypeName, __out PULONG TypeInd
 	POBJECT_TYPES_INFORMATION ObjectTypes;
 	POBJECT_TYPE_INFORMATION_V2 CurrentType;
 	*TypeIndex = 0;
-	pRtlCompareString RtlCompareString = (pRtlCompareString)GetProcAddress(LoadLibrary(L"ntdll.dll"), "RtlCompareString");
+	pRtlCompareUnicodeString RtlCompareUnicodeString = (pRtlCompareUnicodeString)GetProcAddress(LoadLibrary(L"ntdll.dll"), "RtlCompareUnicodeString");
 	Status = QueryObjectTypesInfo(&ObjectTypes);
 	if (!NT_SUCCESS(Status)) {
 		printf("QueryObjectTypesInfo failed: 0x%08x\n", Status);
@@ -203,7 +203,7 @@ NTSTATUS GetTypeIndexByName(__in PCUNICODE_STRING TypeName, __out PULONG TypeInd
 	}
 	CurrentType = OBJECT_TYPES_FIRST_ENTRY(ObjectTypes);
 	for (ULONG i = 0; i < ObjectTypes->NumberOfTypes; i++) {
-		if (RtlCompareString(TypeName, &CurrentType->TypeName, TRUE) == 0) {
+		if (RtlCompareUnicodeString(TypeName, &CurrentType->TypeName, TRUE) == 0) {
 			*TypeIndex = i + 2;
 			break;
 		}
