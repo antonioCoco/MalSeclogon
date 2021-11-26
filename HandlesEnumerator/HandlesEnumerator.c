@@ -77,7 +77,7 @@ NTSTATUS QueryObjectTypesInfo(__out POBJECT_TYPES_INFORMATION* TypesInfo) {
 	do {
 		Buffer = malloc(BufferLength);
 		if (Buffer == NULL)
-			return STATUS_INSUFFICIENT_RESOURCES;
+			return (NTSTATUS)STATUS_INSUFFICIENT_RESOURCES;
 		Status = NtQueryObject(NULL, ObjectTypesInformation, Buffer, BufferLength, &BufferLength);
 		if (NT_SUCCESS(Status)) {
 			*TypesInfo = Buffer;
@@ -100,13 +100,13 @@ NTSTATUS GetTypeIndexByName(__in PCUNICODE_STRING TypeName, __out PULONG TypeInd
 		printf("QueryObjectTypesInfo failed: 0x%08x\n", Status);
 		return Status;
 	}
-	CurrentType = OBJECT_TYPES_FIRST_ENTRY(ObjectTypes);
+	CurrentType = (POBJECT_TYPE_INFORMATION_V2)OBJECT_TYPES_FIRST_ENTRY(ObjectTypes);
 	for (ULONG i = 0; i < ObjectTypes->NumberOfTypes; i++) {
 		if (RtlCompareUnicodeString(TypeName, &CurrentType->TypeName, TRUE) == 0) {
 			*TypeIndex = i + 2;
 			break;
 		}
-		CurrentType = OBJECT_TYPES_NEXT_ENTRY(CurrentType);
+		CurrentType = (POBJECT_TYPE_INFORMATION_V2)OBJECT_TYPES_NEXT_ENTRY(CurrentType);
 	}
 	if (!*TypeIndex)
 		Status = STATUS_NOT_FOUND;
@@ -142,7 +142,7 @@ void EnumerateHandles(DWORD targetPid)
 				processId = GetProcessId(dupedHandle);
 				if (processId == targetPid) {
 					GetModuleBaseNameW(hHostProcess, NULL, processName, MAX_PATH);
-					printf("Found opened process handle 0x%04x to target PID %d in process %S(PID:%d)\n", (HANDLE)handleInfo->Handles[i].HandleValue, targetPid, processName, handleInfo->Handles[i].UniqueProcessId);
+					printf("Found opened process handle 0x%04x to target PID %d in process %S(PID:%d)\n", handleInfo->Handles[i].HandleValue, targetPid, processName, handleInfo->Handles[i].UniqueProcessId);
 					RtlZeroMemory(processName, MAX_PATH*2);
 				}
 				CloseHandle(dupedHandle);

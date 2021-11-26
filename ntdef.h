@@ -7,6 +7,7 @@
 #define STATUS_INSUFFICIENT_RESOURCES 0xC0000009A
 #define STATUS_NOT_FOUND 0xC0000225
 #define SystemHandleInformation 16
+#define MiniDumpWithFullMemory 0x2
 
 #ifndef RtlOffsetToPointer
 #define RtlOffsetToPointer(Base, Offset)  ((PCHAR)( ((PCHAR)(Base)) + ((ULONG_PTR)(Offset))  ))
@@ -183,7 +184,6 @@ typedef struct _TEB
 	PVOID ResourceRetValue;
 } TEB, * PTEB;
 
-
 typedef struct _SYSTEM_HANDLE_TABLE_ENTRY_INFO
 {
 	USHORT UniqueProcessId;
@@ -240,7 +240,6 @@ typedef struct _OBJECT_TYPE_INFORMATION {
 	ULONG DefaultNonPagedPoolCharge;
 } OBJECT_TYPE_INFORMATION, * POBJECT_TYPE_INFORMATION;
 
-
 typedef struct _OBJECT_TYPE_INFORMATION_V2 {
 	UNICODE_STRING TypeName;
 	ULONG TotalNumberOfObjects;
@@ -267,9 +266,19 @@ typedef struct _OBJECT_TYPE_INFORMATION_V2 {
 	ULONG DefaultNonPagedPoolCharge;
 } OBJECT_TYPE_INFORMATION_V2, * POBJECT_TYPE_INFORMATION_V2;
 
+typedef struct _OBJECT_ATTRIBUTES {
+	ULONG           Length;
+	HANDLE          RootDirectory;
+	PUNICODE_STRING ObjectName;
+	ULONG           Attributes;
+	PVOID           SecurityDescriptor;
+	PVOID           SecurityQualityOfService;
+} OBJECT_ATTRIBUTES, * POBJECT_ATTRIBUTES;
+
 typedef const UNICODE_STRING* PCUNICODE_STRING;
 
 typedef NTSTATUS(NTAPI* pNtQuerySystemInformation)(ULONG SystemInformationClass, PVOID SystemInformation, ULONG SystemInformationLength, PULONG ReturnLength);
 typedef NTSTATUS(NTAPI* pNtQueryObject)(_In_opt_ HANDLE Handle, _In_ OBJECT_INFORMATION_CLASS ObjectInformationClass, _Out_writes_bytes_opt_(ObjectInformationLength) PVOID ObjectInformation, _In_ ULONG ObjectInformationLength, _Out_opt_ PULONG ReturnLength);
 typedef NTSTATUS(NTAPI* pRtlCompareUnicodeString)(_In_ PCUNICODE_STRING String1, _In_ PCUNICODE_STRING String2, _In_ BOOLEAN CaseInSensitive);
+typedef NTSTATUS(NTAPI* pNtCreateProcessEx)(PHANDLE ProcessHandle, ACCESS_MASK  DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes OPTIONAL, HANDLE ParentProcess, ULONG Flags, HANDLE SectionHandle OPTIONAL, HANDLE DebugPort OPTIONAL, HANDLE ExceptionPort OPTIONAL, BOOLEAN InJob);
 typedef BOOL(WINAPI* pMiniDumpWriteDump)(HANDLE hProcess, DWORD dwPid, HANDLE hFile, int DumpType, PVOID ExceptionParam, PVOID UserStreamParam, PVOID CallbackParam);
