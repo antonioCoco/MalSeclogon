@@ -1,7 +1,7 @@
 # MalSeclogon
 A little tool to play with the Seclogon service.
 
-Full technical details at --> 
+Full technical details at --> https://splintercod3.blogspot.com/p/the-hidden-side-of-seclogon-part-2.html
 
 ## Usage
 ```
@@ -27,3 +27,7 @@ Examples:
         Malseclogon.exe -p [lsassPid] -d 2
 
 ```
+
+## Build instructions
+Do not build "Debug" or "x86" releases. The compiled binary won't work if using these builds.
+The right build to use is "Release x64".
