@@ -160,9 +160,7 @@ void SpoofPidTeb(DWORD spoofedPid, PDWORD originalPid, PDWORD originalTid) {
 	CLIENT_ID* pointerToTebPid = &(NtCurrentTeb()->ClientId);
 	CSpoofedPid.UniqueProcess = (HANDLE)spoofedPid;
 	CSpoofedPid.UniqueThread = (HANDLE)*originalTid;
-	VirtualProtect(pointerToTebPid, sizeof(CLIENT_ID), PAGE_EXECUTE_READWRITE, &oldProtection);
 	memcpy(pointerToTebPid, &CSpoofedPid, sizeof(CLIENT_ID));
-	VirtualProtect(pointerToTebPid, sizeof(CLIENT_ID), oldProtection, &oldProtection2);
 }
 
 void RestoreOriginalPidTeb(DWORD originalPid, DWORD originalTid) {
@@ -171,9 +169,7 @@ void RestoreOriginalPidTeb(DWORD originalPid, DWORD originalTid) {
 	CLIENT_ID* pointerToTebPid = &(NtCurrentTeb()->ClientId);
 	CRealPid.UniqueProcess = (HANDLE)originalPid;
 	CRealPid.UniqueThread = (HANDLE)originalTid;
-	VirtualProtect(pointerToTebPid, sizeof(CLIENT_ID), PAGE_EXECUTE_READWRITE, &oldProtection);
 	memcpy(pointerToTebPid, &CRealPid, sizeof(CLIENT_ID));
-	VirtualProtect(pointerToTebPid, sizeof(CLIENT_ID), oldProtection, &oldProtection2);
 }
 
 NTSTATUS QueryObjectTypesInfo(__out POBJECT_TYPES_INFORMATION* TypesInfo) {
