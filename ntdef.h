@@ -275,10 +275,120 @@ typedef struct _OBJECT_ATTRIBUTES {
 	PVOID           SecurityQualityOfService;
 } OBJECT_ATTRIBUTES, * POBJECT_ATTRIBUTES;
 
+typedef enum _FILE_INFORMATION_CLASS {
+	FileDirectoryInformation = 1,
+	FileFullDirectoryInformation,                   // 2
+	FileBothDirectoryInformation,                   // 3
+	FileBasicInformation,                           // 4
+	FileStandardInformation,                        // 5
+	FileInternalInformation,                        // 6
+	FileEaInformation,                              // 7
+	FileAccessInformation,                          // 8
+	FileNameInformation,                            // 9
+	FileRenameInformation,                          // 10
+	FileLinkInformation,                            // 11
+	FileNamesInformation,                           // 12
+	FileDispositionInformation,                     // 13
+	FilePositionInformation,                        // 14
+	FileFullEaInformation,                          // 15
+	FileModeInformation,                            // 16
+	FileAlignmentInformation,                       // 17
+	FileAllInformation,                             // 18
+	FileAllocationInformation,                      // 19
+	FileEndOfFileInformation,                       // 20
+	FileAlternateNameInformation,                   // 21
+	FileStreamInformation,                          // 22
+	FilePipeInformation,                            // 23
+	FilePipeLocalInformation,                       // 24
+	FilePipeRemoteInformation,                      // 25
+	FileMailslotQueryInformation,                   // 26
+	FileMailslotSetInformation,                     // 27
+	FileCompressionInformation,                     // 28
+	FileObjectIdInformation,                        // 29
+	FileCompletionInformation,                      // 30
+	FileMoveClusterInformation,                     // 31
+	FileQuotaInformation,                           // 32
+	FileReparsePointInformation,                    // 33
+	FileNetworkOpenInformation,                     // 34
+	FileAttributeTagInformation,                    // 35
+	FileTrackingInformation,                        // 36
+	FileIdBothDirectoryInformation,                 // 37
+	FileIdFullDirectoryInformation,                 // 38
+	FileValidDataLengthInformation,                 // 39
+	FileShortNameInformation,                       // 40
+	FileIoCompletionNotificationInformation,        // 41
+	FileIoStatusBlockRangeInformation,              // 42
+	FileIoPriorityHintInformation,                  // 43
+	FileSfioReserveInformation,                     // 44
+	FileSfioVolumeInformation,                      // 45
+	FileHardLinkInformation,                        // 46
+	FileProcessIdsUsingFileInformation,             // 47
+	FileNormalizedNameInformation,                  // 48
+	FileNetworkPhysicalNameInformation,             // 49
+	FileIdGlobalTxDirectoryInformation,             // 50
+	FileIsRemoteDeviceInformation,                  // 51
+	FileUnusedInformation,                          // 52
+	FileNumaNodeInformation,                        // 53
+	FileStandardLinkInformation,                    // 54
+	FileRemoteProtocolInformation,                  // 55
+
+		//
+		//  These are special versions of these operations (defined earlier)
+		//  which can be used by kernel mode drivers only to bypass security
+		//  access checks for Rename and HardLink operations.  These operations
+		//  are only recognized by the IOManager, a file system should never
+		//  receive these.
+		//
+
+		FileRenameInformationBypassAccessCheck,         // 56
+		FileLinkInformationBypassAccessCheck,           // 57
+
+			//
+			// End of special information classes reserved for IOManager.
+			//
+
+			FileVolumeNameInformation,                      // 58
+			FileIdInformation,                              // 59
+			FileIdExtdDirectoryInformation,                 // 60
+			FileReplaceCompletionInformation,               // 61
+			FileHardLinkFullIdInformation,                  // 62
+			FileIdExtdBothDirectoryInformation,             // 63
+			FileDispositionInformationEx,                   // 64
+			FileRenameInformationEx,                        // 65
+			FileRenameInformationExBypassAccessCheck,       // 66
+			FileDesiredStorageClassInformation,             // 67
+			FileStatInformation,                            // 68
+			FileMemoryPartitionInformation,                 // 69
+			FileStatLxInformation,                          // 70
+			FileCaseSensitiveInformation,                   // 71
+			FileLinkInformationEx,                          // 72
+			FileLinkInformationExBypassAccessCheck,         // 73
+			FileStorageReserveIdInformation,                // 74
+			FileCaseSensitiveInformationForceAccessCheck,   // 75
+			FileKnownFolderInformation,   // 76
+
+			FileMaximumInformation
+} FILE_INFORMATION_CLASS, * PFILE_INFORMATION_CLASS;
+
+typedef struct _IO_STATUS_BLOCK {
+	union {
+		NTSTATUS Status;
+		PVOID    Pointer;
+	};
+	ULONG_PTR Information;
+} IO_STATUS_BLOCK, * PIO_STATUS_BLOCK;
+
 typedef const UNICODE_STRING* PCUNICODE_STRING;
+
+typedef struct _FILE_PROCESS_IDS_USING_FILE_INFORMATION
+{
+	ULONG NumberOfProcessIdsInList;
+	ULONG_PTR ProcessIdList[1];
+} FILE_PROCESS_IDS_USING_FILE_INFORMATION, * PFILE_PROCESS_IDS_USING_FILE_INFORMATION;
 
 typedef NTSTATUS(NTAPI* pNtQuerySystemInformation)(ULONG SystemInformationClass, PVOID SystemInformation, ULONG SystemInformationLength, PULONG ReturnLength);
 typedef NTSTATUS(NTAPI* pNtQueryObject)(_In_opt_ HANDLE Handle, _In_ OBJECT_INFORMATION_CLASS ObjectInformationClass, _Out_writes_bytes_opt_(ObjectInformationLength) PVOID ObjectInformation, _In_ ULONG ObjectInformationLength, _Out_opt_ PULONG ReturnLength);
 typedef NTSTATUS(NTAPI* pRtlCompareUnicodeString)(_In_ PCUNICODE_STRING String1, _In_ PCUNICODE_STRING String2, _In_ BOOLEAN CaseInSensitive);
 typedef NTSTATUS(NTAPI* pNtCreateProcessEx)(PHANDLE ProcessHandle, ACCESS_MASK  DesiredAccess, POBJECT_ATTRIBUTES ObjectAttributes OPTIONAL, HANDLE ParentProcess, ULONG Flags, HANDLE SectionHandle OPTIONAL, HANDLE DebugPort OPTIONAL, HANDLE ExceptionPort OPTIONAL, BOOLEAN InJob);
 typedef BOOL(WINAPI* pMiniDumpWriteDump)(HANDLE hProcess, DWORD dwPid, HANDLE hFile, int DumpType, PVOID ExceptionParam, PVOID UserStreamParam, PVOID CallbackParam);
+typedef NTSTATUS(NTAPI* pNtQueryInformationFile)(HANDLE FileHandle, PIO_STATUS_BLOCK IoStatusBlock, PVOID FileInformation, ULONG Length, FILE_INFORMATION_CLASS FileInformationClass);
