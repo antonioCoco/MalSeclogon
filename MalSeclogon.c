@@ -504,9 +504,9 @@ void usage()
 		"- Run a process with a spoofed PPID:\n"
 		"\tMalseclogon.exe -p [PPID] -c cmd.exe\n"
 		"- Dump lsass by using leaked handles:\n"
-		"\tMalseclogon.exe -p [lsassPid] -d 1\n"
+		"\tMalseclogon.exe -d 1\n"
 		"- Dump lsass by using leaked handles and cloned lsass process:\n"
-		"\tMalseclogon.exe -p [lsassPid] -d 2\n"
+		"\tMalseclogon.exe -d 2\n"
 	);
 	printf("\n");
 }
