@@ -7,7 +7,6 @@
 #define STATUS_INSUFFICIENT_RESOURCES 0xC0000009A
 #define STATUS_NOT_FOUND 0xC0000225
 #define SystemHandleInformation 16
-#define MiniDumpWithFullMemory 0x2
 
 #ifndef RtlOffsetToPointer
 #define RtlOffsetToPointer(Base, Offset)  ((PCHAR)( ((PCHAR)(Base)) + ((ULONG_PTR)(Offset))  ))
@@ -332,42 +331,42 @@ typedef enum _FILE_INFORMATION_CLASS {
 	FileStandardLinkInformation,                    // 54
 	FileRemoteProtocolInformation,                  // 55
 
-		//
-		//  These are special versions of these operations (defined earlier)
-		//  which can be used by kernel mode drivers only to bypass security
-		//  access checks for Rename and HardLink operations.  These operations
-		//  are only recognized by the IOManager, a file system should never
-		//  receive these.
-		//
+	//
+	//  These are special versions of these operations (defined earlier)
+	//  which can be used by kernel mode drivers only to bypass security
+	//  access checks for Rename and HardLink operations.  These operations
+	//  are only recognized by the IOManager, a file system should never
+	//  receive these.
+	//
 
-		FileRenameInformationBypassAccessCheck,         // 56
-		FileLinkInformationBypassAccessCheck,           // 57
+	FileRenameInformationBypassAccessCheck,         // 56
+	FileLinkInformationBypassAccessCheck,           // 57
 
-			//
-			// End of special information classes reserved for IOManager.
-			//
+	//
+	// End of special information classes reserved for IOManager.
+	//
 
-			FileVolumeNameInformation,                      // 58
-			FileIdInformation,                              // 59
-			FileIdExtdDirectoryInformation,                 // 60
-			FileReplaceCompletionInformation,               // 61
-			FileHardLinkFullIdInformation,                  // 62
-			FileIdExtdBothDirectoryInformation,             // 63
-			FileDispositionInformationEx,                   // 64
-			FileRenameInformationEx,                        // 65
-			FileRenameInformationExBypassAccessCheck,       // 66
-			FileDesiredStorageClassInformation,             // 67
-			FileStatInformation,                            // 68
-			FileMemoryPartitionInformation,                 // 69
-			FileStatLxInformation,                          // 70
-			FileCaseSensitiveInformation,                   // 71
-			FileLinkInformationEx,                          // 72
-			FileLinkInformationExBypassAccessCheck,         // 73
-			FileStorageReserveIdInformation,                // 74
-			FileCaseSensitiveInformationForceAccessCheck,   // 75
-			FileKnownFolderInformation,   // 76
+	FileVolumeNameInformation,                      // 58
+	FileIdInformation,                              // 59
+	FileIdExtdDirectoryInformation,                 // 60
+	FileReplaceCompletionInformation,               // 61
+	FileHardLinkFullIdInformation,                  // 62
+	FileIdExtdBothDirectoryInformation,             // 63
+	FileDispositionInformationEx,                   // 64
+	FileRenameInformationEx,                        // 65
+	FileRenameInformationExBypassAccessCheck,       // 66
+	FileDesiredStorageClassInformation,             // 67
+	FileStatInformation,                            // 68
+	FileMemoryPartitionInformation,                 // 69
+	FileStatLxInformation,                          // 70
+	FileCaseSensitiveInformation,                   // 71
+	FileLinkInformationEx,                          // 72
+	FileLinkInformationExBypassAccessCheck,         // 73
+	FileStorageReserveIdInformation,                // 74
+	FileCaseSensitiveInformationForceAccessCheck,   // 75
+	FileKnownFolderInformation,   // 76
 
-			FileMaximumInformation
+	FileMaximumInformation
 } FILE_INFORMATION_CLASS, * PFILE_INFORMATION_CLASS;
 
 typedef struct _IO_STATUS_BLOCK {
@@ -385,6 +384,12 @@ typedef struct _FILE_PROCESS_IDS_USING_FILE_INFORMATION
 	ULONG NumberOfProcessIdsInList;
 	ULONG_PTR ProcessIdList[1];
 } FILE_PROCESS_IDS_USING_FILE_INFORMATION, * PFILE_PROCESS_IDS_USING_FILE_INFORMATION;
+
+typedef struct _THREAD_PARAMETERS
+{
+	int pid;
+	wchar_t* cmdline;
+} THREAD_PARAMETERS;
 
 typedef NTSTATUS(NTAPI* pNtQuerySystemInformation)(ULONG SystemInformationClass, PVOID SystemInformation, ULONG SystemInformationLength, PULONG ReturnLength);
 typedef NTSTATUS(NTAPI* pNtQueryObject)(_In_opt_ HANDLE Handle, _In_ OBJECT_INFORMATION_CLASS ObjectInformationClass, _Out_writes_bytes_opt_(ObjectInformationLength) PVOID ObjectInformation, _In_ ULONG ObjectInformationLength, _Out_opt_ PULONG ReturnLength);
