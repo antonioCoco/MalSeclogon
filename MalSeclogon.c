@@ -122,7 +122,7 @@ int wmain(int argc, wchar_t** argv)
 
 	if (targetPid == -1) {
 		targetPid = GetLsassPid();
-		lsassDumpType = 3;
+		if(lsassDumpType == -1) lsassDumpType = 3;
 	}
 
 	if (lsassDumpType > 1) useLsassClone = TRUE;
