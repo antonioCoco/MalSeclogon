@@ -579,6 +579,8 @@ void DecryptAndWriteDumpToDisk(wchar_t* encryptedDumpPath, int xorKey) {
 	free(readBuffer);
 }
 
+// credits to @tirannido
+// took from --> https://github.com/googleprojectzero/symboliclink-testing-tools/blob/main/CommonUtils/FileOpLock.cpp
 void CreateFileLock(HANDLE hFile, LPOVERLAPPED overlapped) {
 	REQUEST_OPLOCK_INPUT_BUFFER inputBuffer;
 	REQUEST_OPLOCK_OUTPUT_BUFFER outputBuffer;
