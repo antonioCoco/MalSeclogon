@@ -40,7 +40,7 @@ int wmain(int argc, wchar_t** argv)
 {
 	int targetPid = -1;
 	int xorKey = 40;
-	DWORD lsassDumpType = 3;
+	int lsassDumpType = -1;
 	BOOL handlesLeaked = FALSE, useLsassClone = FALSE;
 	wchar_t defaultDumpPath[] = L"C:\\lsass.dmp";
 	wchar_t defaultCmdline[] = L"cmd.exe";
@@ -122,6 +122,7 @@ int wmain(int argc, wchar_t** argv)
 
 	if (targetPid == -1) {
 		targetPid = GetLsassPid();
+		lsassDumpType = 3;
 	}
 
 	if (lsassDumpType > 1) useLsassClone = TRUE;
